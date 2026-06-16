@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>계정 삭제 요청 — 관극</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+                   'Pretendard', 'Noto Sans KR', sans-serif;
+      background: #F8F7F5;
+      color: #111827;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #fff;
+      border-bottom: 1px solid #E5E7EB;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    header .logo { font-size: 22px; }
+    header .app-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #7C3AED;
+    }
+
+    main {
+      flex: 1;
+      max-width: 600px;
+      width: 100%;
+      margin: 40px auto;
+      padding: 0 24px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: #6B7280;
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+
+    .notice {
+      background: #FEF3C7;
+      border-left: 4px solid #F59E0B;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #92400E;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 12px;
+    }
+
+    .delete-list {
+      background: #F9FAFB;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 28px;
+    }
+    .delete-list li {
+      font-size: 13px;
+      color: #4B5563;
+      line-height: 1.7;
+      padding-left: 4px;
+    }
+    .delete-list li::marker { content: "✓  "; color: #7C3AED; }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    input[type="email"] {
+      width: 100%;
+      border: 1px solid #D1D5DB;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 15px;
+      color: #111827;
+      margin-bottom: 16px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="email"]:focus { border-color: #7C3AED; }
+
+    textarea {
+      width: 100%;
+      border: 1px solid #D1D5DB;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      color: #111827;
+      resize: vertical;
+      min-height: 90px;
+      margin-bottom: 24px;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.15s;
+    }
+    textarea:focus { border-color: #7C3AED; }
+
+    .confirm-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    .confirm-row input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      accent-color: #7C3AED;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .confirm-row span {
+      font-size: 13px;
+      color: #374151;
+      line-height: 1.6;
+    }
+
+    button[type="submit"] {
+      width: 100%;
+      background: #EF4444;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button[type="submit"]:hover { background: #DC2626; }
+    button[type="submit"]:disabled {
+      background: #D1D5DB;
+      cursor: not-allowed;
+    }
+
+    .or-divider {
+      text-align: center;
+      font-size: 13px;
+      color: #9CA3AF;
+      margin: 20px 0;
+    }
+
+    .email-link {
+      display: block;
+      text-align: center;
+      font-size: 13px;
+      color: #7C3AED;
+      text-decoration: underline;
+    }
+
+    .success-box {
+      display: none;
+      text-align: center;
+      padding: 20px 0;
+    }
+    .success-box .check { font-size: 48px; margin-bottom: 12px; }
+    .success-box h2 { font-size: 18px; margin-bottom: 8px; }
+    .success-box p { font-size: 14px; color: #6B7280; line-height: 1.6; }
+
+    footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 12px;
+      color: #9CA3AF;
+    }
+    footer a { color: #7C3AED; text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🎭</span>
+  <span class="app-name">관극</span>
+</header>
+
+<main>
+  <div class="card">
+    <div id="form-area">
+      <h1>계정 삭제 요청</h1>
+      <p class="subtitle">
+        계정을 삭제하면 모든 데이터가 영구적으로 삭제되며 복구할 수 없습니다.<br>
+        앱 내에서도 <strong>[내 정보 → 계정 설정 → 회원 탈퇴]</strong>를 통해 즉시 탈퇴할 수 있습니다.
+      </p>
+
+      <div class="notice">
+        ⚠️ 삭제되는 데이터를 미리 확인해 주세요. 제출 후 취소가 불가능합니다.
+      </div>
+
+      <p class="section-title">삭제되는 데이터</p>
+      <ul class="delete-list">
+        <li>계정 및 프로필 정보 (닉네임, 프로필 사진)</li>
+        <li>작성한 게시글 및 댓글</li>
+        <li>관람 기록 (날짜, 좌석, 별점, 메모)</li>
+        <li>북마크, 팔로우 정보</li>
+        <li>좋아요, 신고 기록</li>
+      </ul>
+
+      <form id="delete-form" onsubmit="handleSubmit(event)">
+        <label for="email">카카오 계정 이메일 *</label>
+        <input
+          type="email"
+          id="email"
+          placeholder="example@kakao.com"
+          required
+        />
+
+        <label for="reason">삭제 이유 (선택)</label>
+        <textarea
+          id="reason"
+          placeholder="서비스 개선에 참고하겠습니다"
+        ></textarea>
+
+        <div class="confirm-row">
+          <input type="checkbox" id="confirm" required />
+          <span>
+            위 내용을 모두 확인했으며, 모든 데이터가 영구 삭제됨에 동의합니다.
+          </span>
+        </div>
+
+        <button type="submit" id="submit-btn">계정 삭제 요청하기</button>
+      </form>
+
+      <div class="or-divider">또는</div>
+      <a class="email-link" href="mailto:privacy@gwanggeuk.app?subject=계정%20삭제%20요청">
+        이메일로 직접 요청: privacy@gwanggeuk.app
+      </a>
+    </div>
+
+    <div class="success-box" id="success-box">
+      <div class="check">✅</div>
+      <h2>요청이 접수되었습니다</h2>
+      <p>
+        영업일 기준 <strong>3일 이내</strong>에<br>
+        계정과 관련 데이터를 모두 삭제하겠습니다.<br><br>
+        처리 완료 후 이메일로 안내드립니다.
+      </p>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <a href="/privacy">개인정보처리방침</a> &nbsp;·&nbsp;
+  <a href="/terms">이용약관</a> &nbsp;·&nbsp;
+  © 2026 관극
+</footer>
+
+<script>
+  async function handleSubmit(e) {
+    e.preventDefault();
+
+    const email = document.getElementById('email').value;
+    const reason = document.getElementById('reason').value;
+    const btn = document.getElementById('submit-btn');
+
+    btn.disabled = true;
+    btn.textContent = '처리 중...';
+
+    try {
+      const subject = encodeURIComponent('계정 삭제 요청');
+      const body = encodeURIComponent(
+        `이메일: ${email}\n삭제 이유: ${reason || '미입력'}\n\n위 계정의 모든 데이터 삭제를 요청합니다.`
+      );
+      window.location.href = `mailto:privacy@gwanggeuk.app?subject=${subject}&body=${body}`;
+
+      document.getElementById('form-area').style.display = 'none';
+      document.getElementById('success-box').style.display = 'block';
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = '계정 삭제 요청하기';
+      alert('요청 처리 중 오류가 발생했습니다. 이메일로 직접 요청해 주세요.');
+    }
+  }
+</script>
+
+</body>
+</html>

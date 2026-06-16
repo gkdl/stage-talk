@@ -1,7 +1,7 @@
--- UUID 확장
+-- Enable UUID extension
 create extension if not exists "uuid-ossp";
 
--- 공연 테이블
+-- Performances
 create table performances (
   id uuid primary key default uuid_generate_v4(),
   kopis_id text unique,
@@ -14,21 +14,21 @@ create table performances (
   created_at timestamptz default now()
 );
 
--- 배우 테이블
+-- Actors
 create table actors (
   id uuid primary key default uuid_generate_v4(),
   name text unique not null,
   created_at timestamptz default now()
 );
 
--- 공연-배우 매핑
+-- Performance-Actor mapping
 create table performance_actors (
   performance_id uuid references performances on delete cascade,
   actor_id uuid references actors on delete cascade,
   primary key (performance_id, actor_id)
 );
 
--- 캐스팅 (팬 제보)
+-- Castings (fan reports)
 create table castings (
   id uuid primary key default uuid_generate_v4(),
   performance_id uuid references performances on delete cascade,
@@ -39,7 +39,7 @@ create table castings (
   created_at timestamptz default now()
 );
 
--- 게시글
+-- Posts
 create table posts (
   id uuid primary key default uuid_generate_v4(),
   type text check (type in ('general', 'casting')),
@@ -57,7 +57,7 @@ create table posts (
   created_at timestamptz default now()
 );
 
--- 댓글
+-- Comments
 create table comments (
   id uuid primary key default uuid_generate_v4(),
   post_id uuid references posts on delete cascade,
@@ -71,7 +71,7 @@ create table comments (
   created_at timestamptz default now()
 );
 
--- 관심 공연
+-- Bookmarks
 create table bookmarks (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references auth.users on delete cascade,
@@ -80,7 +80,7 @@ create table bookmarks (
   unique(user_id, performance_id)
 );
 
--- 배우 팔로우
+-- Actor follows
 create table actor_follows (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references auth.users on delete cascade,
@@ -89,7 +89,7 @@ create table actor_follows (
   unique(user_id, actor_id)
 );
 
--- 관람 기록
+-- Watch logs
 create table watch_logs (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references auth.users on delete cascade,
@@ -102,7 +102,7 @@ create table watch_logs (
   created_at timestamptz default now()
 );
 
--- 좋아요
+-- Likes
 create table likes (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references auth.users on delete cascade,
@@ -112,7 +112,7 @@ create table likes (
   unique(user_id, target_type, target_id)
 );
 
--- 알림
+-- Notifications
 create table notifications (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references auth.users on delete cascade,
@@ -123,7 +123,7 @@ create table notifications (
   created_at timestamptz default now()
 );
 
--- 신고
+-- Reports
 create table reports (
   id uuid primary key default uuid_generate_v4(),
   reporter_id uuid references auth.users on delete cascade,
@@ -135,7 +135,7 @@ create table reports (
   created_at timestamptz default now()
 );
 
--- 차단
+-- Blocks
 create table blocks (
   id uuid primary key default uuid_generate_v4(),
   blocker_id uuid references auth.users on delete cascade,
@@ -144,7 +144,7 @@ create table blocks (
   unique(blocker_id, blocked_id)
 );
 
--- 프로필
+-- User profiles
 create table profiles (
   id uuid primary key references auth.users on delete cascade,
   nickname text not null,
@@ -153,7 +153,7 @@ create table profiles (
   updated_at timestamptz default now()
 );
 
--- 인덱스
+-- Indexes
 create index idx_posts_performance_id on posts(performance_id);
 create index idx_posts_actor_id on posts(actor_id);
 create index idx_posts_created_at on posts(created_at desc);
@@ -164,7 +164,9 @@ create index idx_castings_performance_date on castings(performance_id, cast_date
 create index idx_bookmarks_user_id on bookmarks(user_id);
 create index idx_notifications_user_id on notifications(user_id);
 
--- 트리거: 게시글 좋아요 수 자동 집계
+-- Triggers for auto-count
+
+-- likes_count on posts
 create or replace function update_post_likes_count()
 returns trigger language plpgsql as $$
 begin
@@ -181,7 +183,7 @@ create trigger trg_post_likes_count
 after insert or delete on likes
 for each row execute function update_post_likes_count();
 
--- 트리거: 댓글 좋아요 수 자동 집계
+-- likes_count on comments
 create or replace function update_comment_likes_count()
 returns trigger language plpgsql as $$
 begin
@@ -198,7 +200,7 @@ create trigger trg_comment_likes_count
 after insert or delete on likes
 for each row execute function update_comment_likes_count();
 
--- 트리거: 게시글 댓글 수 자동 집계
+-- comments_count on posts
 create or replace function update_post_comments_count()
 returns trigger language plpgsql as $$
 begin
@@ -215,7 +217,8 @@ create trigger trg_post_comments_count
 after insert or delete on comments
 for each row execute function update_post_comments_count();
 
--- RLS 활성화
+-- RLS
+
 alter table performances enable row level security;
 alter table actors enable row level security;
 alter table performance_actors enable row level security;
@@ -231,16 +234,18 @@ alter table reports enable row level security;
 alter table blocks enable row level security;
 alter table profiles enable row level security;
 
--- performances, actors: 전체 읽기
+-- performances: public read, admin write
 create policy "performances_read" on performances for select using (true);
+
+-- actors: public read
 create policy "actors_read" on actors for select using (true);
 create policy "performance_actors_read" on performance_actors for select using (true);
 
--- castings: 전체 읽기, 로그인 유저만 작성
+-- castings: public read, auth write
 create policy "castings_read" on castings for select using (true);
 create policy "castings_insert" on castings for insert with check (auth.uid() is not null);
 
--- posts: 차단 유저 제외 전체 읽기, 본인만 쓰기/수정/삭제
+-- posts: public read (excluding hidden and blocked), auth write
 create policy "posts_read" on posts for select using (
   (is_hidden = false or user_id = auth.uid()) and
   not exists (
@@ -251,7 +256,7 @@ create policy "posts_insert" on posts for insert with check (auth.uid() = user_i
 create policy "posts_update" on posts for update using (auth.uid() = user_id);
 create policy "posts_delete" on posts for delete using (auth.uid() = user_id);
 
--- comments: 차단 유저 제외 전체 읽기, 본인만 쓰기/수정/삭제
+-- comments: similar to posts
 create policy "comments_read" on comments for select using (
   (is_hidden = false or user_id = auth.uid()) and
   not exists (
@@ -262,23 +267,23 @@ create policy "comments_insert" on comments for insert with check (auth.uid() = 
 create policy "comments_update" on comments for update using (auth.uid() = user_id);
 create policy "comments_delete" on comments for delete using (auth.uid() = user_id);
 
--- bookmarks, actor_follows, watch_logs, likes: 본인 데이터만
+-- bookmarks, actor_follows, watch_logs, likes: own data only
 create policy "bookmarks_own" on bookmarks for all using (auth.uid() = user_id);
 create policy "actor_follows_own" on actor_follows for all using (auth.uid() = user_id);
 create policy "watch_logs_own" on watch_logs for all using (auth.uid() = user_id);
 create policy "likes_own" on likes for all using (auth.uid() = user_id);
 
--- notifications: 본인만 읽기/수정
+-- notifications: own read/update
 create policy "notifications_read" on notifications for select using (auth.uid() = user_id);
 create policy "notifications_update" on notifications for update using (auth.uid() = user_id);
 
--- reports: 로그인 유저만 신고, 본인 신고 내역만 읽기
+-- reports: auth insert, own read
 create policy "reports_insert" on reports for insert with check (auth.uid() = reporter_id);
 create policy "reports_read" on reports for select using (auth.uid() = reporter_id);
 
--- blocks: 본인 데이터만
+-- blocks: own data
 create policy "blocks_own" on blocks for all using (auth.uid() = blocker_id);
 
--- profiles: 전체 읽기, 본인만 수정
+-- profiles: own write, public read
 create policy "profiles_read" on profiles for select using (true);
 create policy "profiles_own" on profiles for all using (auth.uid() = id);

@@ -21,10 +21,11 @@ import {
   PerfSort,
 } from '@/hooks/usePerformances';
 import PerformanceCard from '@/components/PerformanceCard';
+import BoardFeed from '@/components/BoardFeed';
 import { Performance } from '@/types/database';
 import { dedupeById } from '@/utils/dedupeById';
 
-type Tab = 'list' | 'tips';
+type Tab = 'list' | 'board';
 
 const GENRE_FILTERS: { label: string; value: Genre }[] = [
   { label: '전체', value: 'all' },
@@ -134,7 +135,7 @@ export default function PerformancesScreen() {
         </View>
       </View>
 
-      {/* 상단 탭: 공연 목록 / 정보·팁 */}
+      {/* 상단 탭: 공연 목록 / 게시판 */}
       <View style={styles.tabRow}>
         <TouchableOpacity onPress={() => setActiveTab('list')} style={styles.tab}>
           <Text style={[styles.tabText, activeTab === 'list' && styles.tabTextActive]}>
@@ -142,11 +143,11 @@ export default function PerformancesScreen() {
           </Text>
           {activeTab === 'list' && <View style={styles.tabUnderline} />}
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setActiveTab('tips')} style={styles.tab}>
-          <Text style={[styles.tabText, activeTab === 'tips' && styles.tabTextActive]}>
-            정보·팁
+        <TouchableOpacity onPress={() => setActiveTab('board')} style={styles.tab}>
+          <Text style={[styles.tabText, activeTab === 'board' && styles.tabTextActive]}>
+            게시판
           </Text>
-          {activeTab === 'tips' && <View style={styles.tabUnderline} />}
+          {activeTab === 'board' && <View style={styles.tabUnderline} />}
         </TouchableOpacity>
       </View>
       <View style={styles.tabDivider} />
@@ -220,9 +221,7 @@ export default function PerformancesScreen() {
           )}
         </>
       ) : (
-        <View style={styles.tipsEmpty}>
-          <Text style={styles.emptyText}>정보·팁 게시판은 준비 중이에요</Text>
-        </View>
+        <BoardFeed />
       )}
 
       {/* 정렬 선택 모달 */}

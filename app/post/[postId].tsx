@@ -10,12 +10,14 @@ import {
   Alert,
   ActionSheetIOS,
   Platform,
+  Modal,
+  Pressable,
   KeyboardAvoidingView,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as Sharing from 'expo-sharing';
+import { goBack } from '@/utils/nav';
 import { colors, tagColors } from '@/constants/theme';
 import { ContentBlock } from '@/types/database';
 import { usePost, usePostLike, useDeletePost } from '@/hooks/usePost';
@@ -228,6 +230,7 @@ export default function PostDetailScreen() {
   const [commentText, setCommentText] = useState('');
   const [replyTo, setReplyTo] = useState<{ id: string; nickname: string; depth: number } | null>(null);
   const [sort, setSort] = useState<SortKey>('created_at');
+  const [optionsMenu, setOptionsMenu] = useState<null | 'main' | 'report'>(null);
 
   const { data: post, isLoading: postLoading } = usePost(postId);
   const { isLiked, toggleLike } = usePostLike(postId);
@@ -267,73 +270,58 @@ export default function PostDetailScreen() {
     setReplyTo(null);
   };
 
-  const handleShare = async () => {
-    await Sharing.shareAsync(`gwanggeuk://post/${postId}`, {
-      dialogTitle: post?.title ?? '게시글 공유',
+  // 플랫폼 공용 확인창 (RNW의 Alert 다중버튼 미지원 → 웹은 window.confirm)
+  const confirmAsync = (title: string, message: string): Promise<boolean> => {
+    if (Platform.OS === 'web') {
+      return Promise.resolve(
+        typeof window !== 'undefined' ? window.confirm(`${title}\n\n${message}`) : false,
+      );
+    }
+    return new Promise((resolve) => {
+      Alert.alert(title, message, [
+        { text: '취소', style: 'cancel', onPress: () => resolve(false) },
+        { text: '확인', style: 'destructive', onPress: () => resolve(true) },
+      ]);
     });
   };
 
-  const showPostOptions = () => {
-    async function submitReport(id: string, category: string) {
-      if (!user) return;
-      await supabase.from('reports').insert({
-        reporter_id: user.id,
-        target_type: 'post',
-        target_id: id,
-        category,
-      });
-      Alert.alert('신고가 접수되었습니다');
-    }
-
-    async function blockUser(userId: string) {
-      if (!user) return;
-      Alert.alert('사용자 차단', '이 사용자를 차단하시겠어요?', [
-        {
-          text: '차단',
-          style: 'destructive',
-          onPress: async () => {
-            await supabase.from('blocks').insert({ blocker_id: user.id, blocked_id: userId });
-            queryClient.invalidateQueries({ queryKey: ['posts'] });
-            router.back();
-          },
-        },
-        { text: '취소', style: 'cancel' },
-      ]);
-    }
-
-    if (isOwn) {
-      Alert.alert('게시글 옵션', undefined, [
-        { text: '수정', onPress: () => router.push(`/write?postId=${postId}` as never) },
-        {
-          text: '삭제',
-          style: 'destructive',
-          onPress: () =>
-            Alert.alert('삭제', '이 게시글을 삭제할까요?', [
-              { text: '삭제', style: 'destructive', onPress: () => { deletePost(); router.back(); } },
-              { text: '취소', style: 'cancel' },
-            ]),
-        },
-        { text: '취소', style: 'cancel' },
-      ]);
-    } else {
-      Alert.alert('게시글 옵션', undefined, [
-        {
-          text: '신고하기',
-          onPress: () =>
-            Alert.alert('신고 카테고리', '신고 이유를 선택해주세요', [
-              { text: '스팸', onPress: () => submitReport(postId, 'spam') },
-              { text: '욕설·혐오', onPress: () => submitReport(postId, 'hate') },
-              { text: '허위정보', onPress: () => submitReport(postId, 'false_info') },
-              { text: '불법콘텐츠', onPress: () => submitReport(postId, 'illegal') },
-              { text: '기타', onPress: () => submitReport(postId, 'etc') },
-              { text: '취소', style: 'cancel' },
-            ]),
-        },
-        { text: '작성자 차단하기', style: 'destructive', onPress: () => post && blockUser(post.user_id) },
-        { text: '취소', style: 'cancel' },
-      ]);
-    }
+  const submitReport = async (category: string) => {
+    if (!user) return;
+    await supabase.from('reports').insert({
+      reporter_id: user.id,
+      target_type: 'post',
+      target_id: postId,
+      category,
+    });
+    setOptionsMenu(null);
+    Alert.alert('신고가 접수되었습니다');
   };
+
+  const blockAuthor = async () => {
+    if (!user || !post) return;
+    setOptionsMenu(null);
+    if (!(await confirmAsync('사용자 차단', '이 사용자를 차단하시겠어요?'))) return;
+    await supabase.from('blocks').insert({ blocker_id: user.id, blocked_id: post.user_id });
+    queryClient.invalidateQueries({ queryKey: ['home-posts'] });
+    queryClient.invalidateQueries({ queryKey: ['actor-posts-feed'] });
+    queryClient.invalidateQueries({ queryKey: ['performance-posts'] });
+    goBack();
+  };
+
+  const handleDeletePost = async () => {
+    setOptionsMenu(null);
+    if (!(await confirmAsync('삭제', '이 게시글을 삭제할까요?'))) return;
+    deletePost();
+    goBack();
+  };
+
+  const REPORT_CATEGORIES: [string, string][] = [
+    ['스팸', 'spam'],
+    ['욕설·혐오', 'hate'],
+    ['허위정보', 'false_info'],
+    ['불법콘텐츠', 'illegal'],
+    ['기타', 'etc'],
+  ];
 
   if (postLoading) {
     return (
@@ -354,10 +342,7 @@ export default function PostDetailScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{post?.title ?? ''}</Text>
         <View style={styles.headerRight}>
-          <TouchableOpacity onPress={handleShare} style={{ marginRight: 12 }}>
-            <Text style={styles.shareIcon}>⎋</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={showPostOptions}>
+          <TouchableOpacity onPress={() => setOptionsMenu('main')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Text style={styles.kebabIcon}>⋮</Text>
           </TouchableOpacity>
         </View>
@@ -477,6 +462,58 @@ export default function PostDetailScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* 게시글 옵션 바텀시트 (웹/모바일 공용) */}
+      <Modal
+        visible={optionsMenu !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOptionsMenu(null)}
+      >
+        <Pressable style={styles.optOverlay} onPress={() => setOptionsMenu(null)}>
+          <Pressable style={styles.optSheet} onPress={() => {}}>
+            {optionsMenu === 'main' && isOwn && (
+              <>
+                <TouchableOpacity
+                  style={styles.optItem}
+                  onPress={() => {
+                    setOptionsMenu(null);
+                    router.push(`/write?postId=${postId}` as never);
+                  }}
+                >
+                  <Text style={styles.optText}>수정</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.optItem} onPress={handleDeletePost}>
+                  <Text style={[styles.optText, styles.optDanger]}>삭제</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            {optionsMenu === 'main' && !isOwn && (
+              <>
+                <TouchableOpacity style={styles.optItem} onPress={() => setOptionsMenu('report')}>
+                  <Text style={styles.optText}>신고하기</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.optItem} onPress={blockAuthor}>
+                  <Text style={[styles.optText, styles.optDanger]}>작성자 차단하기</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            {optionsMenu === 'report' && (
+              <>
+                <Text style={styles.optSheetTitle}>신고 이유</Text>
+                {REPORT_CATEGORIES.map(([label, cat]) => (
+                  <TouchableOpacity key={cat} style={styles.optItem} onPress={() => submitReport(cat)}>
+                    <Text style={styles.optText}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+            <TouchableOpacity style={[styles.optItem, styles.optCancel]} onPress={() => setOptionsMenu(null)}>
+              <Text style={styles.optCancelText}>취소</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -538,6 +575,36 @@ const styles = StyleSheet.create({
   actionReply: { fontSize: 11, color: colors.primary },
   kebabBtn: { padding: 4 },
   kebab: { fontSize: 14, color: colors.textTertiary },
+
+  optOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  optSheet: {
+    backgroundColor: colors.cardBackground,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 8,
+    paddingBottom: 28,
+    paddingHorizontal: 8,
+  },
+  optSheetTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textTertiary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  optItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  optText: { fontSize: 16, color: colors.textPrimary },
+  optDanger: { color: '#DC2626', fontWeight: '600' },
+  optCancel: { marginTop: 6, backgroundColor: '#F3F4F6', borderRadius: 12 },
+  optCancelText: { fontSize: 16, fontWeight: '600', color: colors.textSecondary },
 
   depthLine: { position: 'absolute', top: 0, bottom: 0, width: 2, backgroundColor: colors.divider },
   depthSymbol: { position: 'absolute', top: 10, fontSize: 11, color: colors.textTertiary },

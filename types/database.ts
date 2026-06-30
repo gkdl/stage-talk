@@ -7,6 +7,7 @@ export interface Performance {
   end_date: string;
   genre: 'musical' | 'play';
   status: 'ongoing' | 'upcoming' | 'ended';
+  poster_url: string | null;
   created_at: string;
 }
 

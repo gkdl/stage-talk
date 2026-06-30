@@ -92,7 +92,10 @@ export function useDeletePost(postId: string) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      // 리스트 쿼리들 prefix로 무효화 → 삭제된 글이 리스트에서 사라짐
+      queryClient.invalidateQueries({ queryKey: ['home-posts'] });
+      queryClient.invalidateQueries({ queryKey: ['actor-posts-feed'] });
+      queryClient.invalidateQueries({ queryKey: ['performance-posts'] });
       queryClient.removeQueries({ queryKey: ['post', postId] });
     },
   });

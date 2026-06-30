@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors } from '@/constants/theme';
-import { useWatchLogs, useWatchLogStats, useDeleteWatchLog } from '@/hooks/useWatchLogs';
+import { useWatchLogs, useWatchLogStats, useDeleteWatchLog, StatsPeriod } from '@/hooks/useWatchLogs';
 import { useAuthStore } from '@/store/authStore';
 
 type GenreFilter = 'all' | 'musical' | 'play';
@@ -68,9 +68,10 @@ export default function RecordsScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const [genre, setGenre] = useState<GenreFilter>('all');
+  const [period, setPeriod] = useState<StatsPeriod>('year');
 
   const { data: logs = [], isLoading, refetch, isRefetching } = useWatchLogs(genre);
-  const { data: stats } = useWatchLogStats();
+  const { data: stats } = useWatchLogStats(period);
   const { mutate: deleteLog } = useDeleteWatchLog();
 
   const handleDelete = useCallback((id: string) => deleteLog(id), [deleteLog]);
@@ -114,7 +115,24 @@ export default function RecordsScreen() {
           <>
             {/* 통계 카드 */}
             <View style={styles.statsCard}>
-              <Text style={styles.statsYear}>{new Date().getFullYear()}년 관극 기록</Text>
+              <View style={styles.statsHeaderRow}>
+                <Text style={styles.statsYear}>
+                  {period === 'year' ? `${new Date().getFullYear()}년 관극 기록` : '전체 관극 기록'}
+                </Text>
+                <View style={styles.periodToggle}>
+                  {(['year', 'all'] as StatsPeriod[]).map((p) => (
+                    <TouchableOpacity
+                      key={p}
+                      style={[styles.periodBtn, period === p && styles.periodBtnActive]}
+                      onPress={() => setPeriod(p)}
+                    >
+                      <Text style={[styles.periodBtnText, period === p && styles.periodBtnTextActive]}>
+                        {p === 'year' ? '올해' : '전체'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>{stats?.total ?? 0}편</Text>
@@ -203,7 +221,23 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
   },
-  statsYear: { fontSize: 13, fontWeight: '500', color: '#DDD6FE', marginBottom: 12 },
+  statsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  statsYear: { fontSize: 13, fontWeight: '500', color: '#DDD6FE' },
+  periodToggle: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 100,
+    padding: 2,
+  },
+  periodBtn: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 100 },
+  periodBtnActive: { backgroundColor: '#fff' },
+  periodBtnText: { fontSize: 11, fontWeight: '600', color: '#EDE9FE' },
+  periodBtnTextActive: { color: colors.primary },
   statsRow: { flexDirection: 'row' },
   statItem: { flex: 1 },
   statValue: { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 4 },

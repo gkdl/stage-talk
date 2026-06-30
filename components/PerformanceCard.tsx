@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { colors } from '@/constants/theme';
 import { Performance } from '@/types/database';
 
@@ -8,8 +8,8 @@ interface Props {
 }
 
 const genrePill = {
-  musical: { bg: '#EDE9FE', text: '#5B21B6', label: '뮤지컬' },
-  play:    { bg: '#FEF3C7', text: '#92400E', label: '연극' },
+  musical: { bg: '#EDE9FE', text: '#5B21B6', label: '뮤지컬', icon: '🎭' },
+  play:    { bg: '#FEF3C7', text: '#92400E', label: '연극', icon: '🎬' },
 };
 
 const statusPill = {
@@ -25,11 +25,24 @@ function formatDate(d: string) {
 export default function PerformanceCard({ item, onPress }: Props) {
   const genre = genrePill[item.genre as 'musical' | 'play'] ?? genrePill.musical;
   const status = statusPill[item.status as 'ongoing' | 'upcoming' | 'ended'] ?? statusPill.ended;
-  const barColor = item.genre === 'play' ? colors.playBar : colors.musicalBar;
+  const hasPoster = !!item.poster_url;
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
-      <View style={[styles.bar, { backgroundColor: barColor }]} />
+      {/* 포스터 — 이미지가 있으면 표시, 없으면(수동 등록 등) 장르색 폴백 */}
+      {hasPoster ? (
+        <Image
+          source={{ uri: item.poster_url! }}
+          style={styles.poster}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[styles.poster, styles.posterFallback, { backgroundColor: genre.bg }]}>
+          <Text style={styles.posterFallbackIcon}>{genre.icon}</Text>
+          <Text style={[styles.posterFallbackText, { color: genre.text }]}>{genre.label}</Text>
+        </View>
+      )}
+
       <View style={styles.body}>
         <View style={styles.left}>
           <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
@@ -64,11 +77,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 6,
     elevation: 2,
-    height: 82,
+    height: 96,
   },
-  bar: {
-    width: 4,
-    borderRadius: 4,
+  poster: {
+    width: 64,
+    height: '100%',
+    backgroundColor: '#F3F4F6',
+  },
+  posterFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  posterFallbackIcon: {
+    fontSize: 22,
+  },
+  posterFallbackText: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 2,
   },
   body: {
     flex: 1,
@@ -80,6 +106,7 @@ const styles = StyleSheet.create({
   left: {
     flex: 1,
     paddingRight: 8,
+    justifyContent: 'center',
   },
   title: {
     fontSize: 15,

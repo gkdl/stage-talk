@@ -1,0 +1,42 @@
+name: EAS Build (Android)
+
+# 수동 실행: GitHub → Actions → "EAS Build (Android)" → Run workflow
+# 사전 준비: 리포지토리 Settings → Secrets → Actions 에 EXPO_TOKEN 추가
+#   (expo.dev → Account Settings → Access Tokens 에서 발급)
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: '빌드 프로필 (preview=APK 테스트용 / production=AAB 스토어용)'
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - production
+
+jobs:
+  build:
+    name: Android ${{ github.event.inputs.profile }} 빌드
+    runs-on: ubuntu-latest
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: EAS / Expo 설정
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: EAS 빌드 실행 (클라우드)
+        run: eas build --platform android --profile ${{ github.event.inputs.profile }} --non-interactive --no-wait

@@ -33,24 +33,28 @@ export function useWatchLogs(genre: GenreFilter = 'all') {
   });
 }
 
-export function useWatchLogStats() {
+export type StatsPeriod = 'year' | 'all';
+
+export function useWatchLogStats(period: StatsPeriod = 'year') {
   const user = useAuthStore((s) => s.user);
 
   return useQuery({
-    queryKey: ['watch-log-stats', user?.id],
+    queryKey: ['watch-log-stats', user?.id, period],
     queryFn: async () => {
       if (!user) return { total: 0, thisMonth: 0, favoriteActor: null };
 
       const now = new Date();
       const thisYear = now.getFullYear();
       const thisMonth = now.getMonth() + 1;
+      const fromDate = period === 'year' ? `${thisYear}-01-01` : null;
 
-      const { data, error } = await supabase
+      let logQuery = supabase
         .from('watch_logs')
-        .select('watch_date, casting, performances!inner(title, genre)')
-        .eq('user_id', user.id)
-        .gte('watch_date', `${thisYear}-01-01`);
+        .select('watch_date')
+        .eq('user_id', user.id);
+      if (fromDate) logQuery = logQuery.gte('watch_date', fromDate);
 
+      const { data, error } = await logQuery;
       if (error) throw error;
 
       const logs = data ?? [];
@@ -58,20 +62,9 @@ export function useWatchLogStats() {
       const monthStr = `${thisYear}-${String(thisMonth).padStart(2, '0')}`;
       const thisMonthCount = logs.filter((l) => l.watch_date?.startsWith(monthStr)).length;
 
-      // 최애 배우: casting 문자열에서 가장 많이 등장한 이름 추출
-      const actorCount: Record<string, number> = {};
-      logs.forEach((l) => {
-        if (l.casting) {
-          l.casting.split(/[·,·&\s]+/).forEach((name: string) => {
-            const n = name.trim();
-            if (n) actorCount[n] = (actorCount[n] ?? 0) + 1;
-          });
-        }
-      });
-      const favoriteActor =
-        Object.keys(actorCount).length > 0
-          ? Object.entries(actorCount).sort((a, b) => b[1] - a[1])[0][0]
-          : null;
+      // 최애 배우: DB 집계(RPC) — watch_log_actors group by, 텍스트 파싱 없음
+      const { data: fav } = await supabase.rpc('favorite_actor', { p_from: fromDate });
+      const favoriteActor = fav && fav.length > 0 ? fav[0].name : null;
 
       return { total, thisMonth: thisMonthCount, favoriteActor };
     },
@@ -87,6 +80,7 @@ interface AddWatchLogInput {
   casting?: string;
   rating?: number;
   memo?: string;
+  actor_ids?: string[];
 }
 
 export function useAddWatchLog() {
@@ -96,11 +90,20 @@ export function useAddWatchLog() {
   return useMutation({
     mutationFn: async (input: AddWatchLogInput) => {
       if (!user) throw new Error('로그인이 필요합니다');
-      const { error } = await supabase.from('watch_logs').insert({
-        user_id: user.id,
-        ...input,
-      });
+      const { actor_ids, ...logFields } = input;
+      const { data: log, error } = await supabase
+        .from('watch_logs')
+        .insert({ user_id: user.id, ...logFields })
+        .select('id')
+        .single();
       if (error) throw error;
+
+      // 선택한 배우들을 join 테이블에 연결 (최애 배우 집계용)
+      if (log && actor_ids && actor_ids.length > 0) {
+        const rows = actor_ids.map((actor_id) => ({ watch_log_id: log.id, actor_id }));
+        const { error: linkErr } = await supabase.from('watch_log_actors').insert(rows);
+        if (linkErr) throw linkErr;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['watch-logs', user?.id] });

@@ -8,15 +8,22 @@ import {
   FlatList,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors } from '@/constants/theme';
-import { usePerformances } from '@/hooks/usePerformances';
+import {
+  usePerformances,
+  Genre,
+  PerfStatus,
+  PerfSort,
+} from '@/hooks/usePerformances';
 import PerformanceCard from '@/components/PerformanceCard';
 import { Performance } from '@/types/database';
+import { dedupeById } from '@/utils/dedupeById';
 
-type Genre = 'all' | 'musical' | 'play';
 type Tab = 'list' | 'tips';
 
 const GENRE_FILTERS: { label: string; value: Genre }[] = [
@@ -25,18 +32,36 @@ const GENRE_FILTERS: { label: string; value: Genre }[] = [
   { label: '연극', value: 'play' },
 ];
 
+const STATUS_FILTERS: { label: string; value: PerfStatus }[] = [
+  { label: '전체', value: 'all' },
+  { label: '공연중', value: 'ongoing' },
+  { label: '공연예정', value: 'upcoming' },
+  { label: '공연종료', value: 'ended' },
+];
+
+const SORT_OPTIONS: { label: string; value: PerfSort }[] = [
+  { label: '공연 임박순', value: 'imminent' },
+  { label: '최신 등록순', value: 'latest' },
+  { label: '가나다순', value: 'title' },
+];
+
 export default function PerformancesScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('list');
   const [genre, setGenre] = useState<Genre>('all');
+  const [status, setStatus] = useState<PerfStatus>('all');
+  const [sort, setSort] = useState<PerfSort>('imminent');
+  const [sortModal, setSortModal] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, refetch, isRefetching } =
-    usePerformances(genre, debouncedSearch);
+    usePerformances(genre, status, sort, debouncedSearch);
 
-  const performances = data?.pages.flat() ?? [];
+  const sortLabel = SORT_OPTIONS.find((o) => o.value === sort)?.label ?? '정렬';
+
+  const performances = dedupeById(data?.pages.flat() ?? []);
 
   const handleSearchChange = useCallback(
     (text: string) => {
@@ -128,16 +153,39 @@ export default function PerformancesScreen() {
 
       {activeTab === 'list' ? (
         <>
-          {/* 장르 필터 */}
+          {/* 장르 필터 + 정렬 버튼 */}
           <View style={styles.filterRow}>
-            {GENRE_FILTERS.map((f) => (
+            <View style={styles.pillGroup}>
+              {GENRE_FILTERS.map((f) => (
+                <TouchableOpacity
+                  key={f.value}
+                  style={[styles.filterPill, genre === f.value && styles.filterPillActive]}
+                  onPress={() => setGenre(f.value)}
+                >
+                  <Text
+                    style={[styles.filterText, genre === f.value && styles.filterTextActive]}
+                  >
+                    {f.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={styles.sortBtn} onPress={() => setSortModal(true)}>
+              <Text style={styles.sortBtnText}>{sortLabel}</Text>
+              <Text style={styles.sortBtnCaret}>▾</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 공연상태 필터 */}
+          <View style={styles.statusRow}>
+            {STATUS_FILTERS.map((f) => (
               <TouchableOpacity
                 key={f.value}
-                style={[styles.filterPill, genre === f.value && styles.filterPillActive]}
-                onPress={() => setGenre(f.value)}
+                style={[styles.statusPill, status === f.value && styles.statusPillActive]}
+                onPress={() => setStatus(f.value)}
               >
                 <Text
-                  style={[styles.filterText, genre === f.value && styles.filterTextActive]}
+                  style={[styles.statusText, status === f.value && styles.statusTextActive]}
                 >
                   {f.label}
                 </Text>
@@ -176,6 +224,40 @@ export default function PerformancesScreen() {
           <Text style={styles.emptyText}>정보·팁 게시판은 준비 중이에요</Text>
         </View>
       )}
+
+      {/* 정렬 선택 모달 */}
+      <Modal
+        visible={sortModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSortModal(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setSortModal(false)}>
+          <View style={styles.sortSheet}>
+            <Text style={styles.sortSheetTitle}>정렬</Text>
+            {SORT_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                style={styles.sortOption}
+                onPress={() => {
+                  setSort(opt.value);
+                  setSortModal(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.sortOptionText,
+                    sort === opt.value && styles.sortOptionTextActive,
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+                {sort === opt.value && <Text style={styles.sortCheck}>✓</Text>}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -256,9 +338,97 @@ const styles = StyleSheet.create({
 
   filterRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  pillGroup: {
+    flexDirection: 'row',
     gap: 8,
+  },
+  sortBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    height: 32,
+    paddingHorizontal: 10,
+  },
+  sortBtnText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  sortBtnCaret: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  statusPill: {
+    height: 30,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+  },
+  statusPillActive: {
+    backgroundColor: colors.primaryLight ?? '#EDE9FE',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  statusTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  sortSheet: {
+    backgroundColor: colors.cardBackground,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 8,
+    paddingBottom: 32,
+    paddingHorizontal: 8,
+  },
+  sortSheetTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textTertiary,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  sortOptionText: {
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
+  sortOptionTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  sortCheck: {
+    fontSize: 16,
+    color: colors.primary,
+    fontWeight: '700',
   },
   filterPill: {
     height: 32,

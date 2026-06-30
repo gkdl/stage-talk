@@ -1,9 +1,8 @@
--- Enable UUID extension
-create extension if not exists "uuid-ossp";
+-- UUID 생성은 PostgreSQL 13+ 코어 내장 gen_random_uuid() 사용 (확장 불필요)
 
 -- Performances
 create table performances (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   kopis_id text unique,
   title text not null,
   venue text,
@@ -16,7 +15,7 @@ create table performances (
 
 -- Actors
 create table actors (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   name text unique not null,
   created_at timestamptz default now()
 );
@@ -30,7 +29,7 @@ create table performance_actors (
 
 -- Castings (fan reports)
 create table castings (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   performance_id uuid references performances on delete cascade,
   cast_date date not null,
   time_slot text check (time_slot in ('14:00', '19:30', 'other')),
@@ -41,7 +40,7 @@ create table castings (
 
 -- Posts
 create table posts (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   type text check (type in ('general', 'casting')),
   board text check (board in ('performance', 'actor', 'tips')),
   performance_id uuid references performances on delete cascade,
@@ -59,7 +58,7 @@ create table posts (
 
 -- Comments
 create table comments (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   post_id uuid references posts on delete cascade,
   parent_id uuid references comments on delete cascade,
   depth int default 0,
@@ -73,7 +72,7 @@ create table comments (
 
 -- Bookmarks
 create table bookmarks (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users on delete cascade,
   performance_id uuid references performances on delete cascade,
   created_at timestamptz default now(),
@@ -82,7 +81,7 @@ create table bookmarks (
 
 -- Actor follows
 create table actor_follows (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users on delete cascade,
   actor_id uuid references actors on delete cascade,
   created_at timestamptz default now(),
@@ -91,7 +90,7 @@ create table actor_follows (
 
 -- Watch logs
 create table watch_logs (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users on delete cascade,
   performance_id uuid references performances on delete cascade,
   watch_date date,
@@ -104,7 +103,7 @@ create table watch_logs (
 
 -- Likes
 create table likes (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users on delete cascade,
   target_type text check (target_type in ('post', 'comment')),
   target_id uuid not null,
@@ -114,7 +113,7 @@ create table likes (
 
 -- Notifications
 create table notifications (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users on delete cascade,
   type text check (type in ('new_post', 'casting_update', 'comment')),
   performance_id uuid references performances on delete cascade,
@@ -125,7 +124,7 @@ create table notifications (
 
 -- Reports
 create table reports (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   reporter_id uuid references auth.users on delete cascade,
   target_type text check (target_type in ('post', 'comment', 'user')),
   target_id uuid not null,
@@ -137,7 +136,7 @@ create table reports (
 
 -- Blocks
 create table blocks (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   blocker_id uuid references auth.users on delete cascade,
   blocked_id uuid references auth.users on delete cascade,
   created_at timestamptz default now(),

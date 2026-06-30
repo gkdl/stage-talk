@@ -24,6 +24,7 @@ import { usePerformancePosts } from '@/hooks/usePerformancePosts';
 import { useCastings, useCastingsByDate, useAddCasting } from '@/hooks/useCastings';
 import { useBookmark } from '@/hooks/useBookmark';
 import { useAuthStore } from '@/store/authStore';
+import { dedupeById } from '@/utils/dedupeById';
 
 type MainTab = 'board' | 'casting' | 'info';
 type SortTab = 'popular' | 'recent';
@@ -54,7 +55,7 @@ function BoardTab({ performanceId }: { performanceId: string }) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, refetch, isRefetching } =
     usePerformancePosts(performanceId, sort);
 
-  const posts = data?.pages.flat() ?? [];
+  const posts = dedupeById(data?.pages.flat() ?? []);
 
   const tagMap: Record<string, string[]> = {
     '후기(스포있음)': ['후기', '스포있음'],

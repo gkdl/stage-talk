@@ -30,6 +30,7 @@ export function useActorPosts(search: string, sort: SortType) {
         .eq('board', 'actor')
         .eq('is_hidden', false)
         .order(sort, { ascending: false })
+        .order('id', { ascending: false }) // 페이징 안정화용 고유 tiebreaker
         .range(pageParam * PAGE_SIZE, (pageParam + 1) * PAGE_SIZE - 1);
 
       if (search.trim()) {

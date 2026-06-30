@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -19,17 +20,23 @@ export default function LoginScreen() {
   const handleKakaoLogin = async () => {
     setIsLoading(true);
     try {
-      // Supabase OAuth + 딥링크 콜백으로 처리
-      // 실제 카카오 연동은 Supabase 대시보드에서 Kakao provider 설정 필요
+      // 웹: 현재 origin으로 복귀(URL에서 세션 자동 감지) / 네이티브: 딥링크
+      const redirectTo =
+        Platform.OS === 'web'
+          ? window.location.origin
+          : 'gwanggeuk://auth/callback';
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'kakao' as any,
         options: {
-          redirectTo: 'gwanggeuk://auth/callback',
+          redirectTo,
+          scopes: 'profile_nickname profile_image',
         },
       });
 
       if (error) throw error;
-      // OAuth URL이 열리면 딥링크로 콜백됨 (_layout.tsx의 onAuthStateChange가 처리)
+      // 웹은 페이지가 리다이렉트되며 복귀 시 _layout.tsx의 onAuthStateChange가 세션 처리
+
     } catch (e: any) {
       Alert.alert('로그인 실패', e.message ?? '잠시 후 다시 시도해주세요');
     } finally {
@@ -49,7 +56,7 @@ export default function LoginScreen() {
         <View style={styles.logoCircle}>
           <Text style={styles.logoEmoji}>🎭</Text>
         </View>
-        <Text style={styles.appName}>관극</Text>
+        <Text style={styles.appName}>스테이지톡</Text>
         <Text style={styles.appDesc}>뮤지컬·연극 커뮤니티</Text>
       </View>
 
@@ -72,8 +79,9 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         <Text style={styles.terms}>
-          로그인 시 <Text style={styles.termsLink}>이용약관</Text>과{' '}
-          <Text style={styles.termsLink}>개인정보처리방침</Text>에 동의합니다
+          로그인 시{' '}
+          <Text style={styles.termsLink} onPress={() => router.push('/legal/terms')}>이용약관</Text>과{' '}
+          <Text style={styles.termsLink} onPress={() => router.push('/legal/privacy')}>개인정보처리방침</Text>에 동의합니다
         </Text>
       </View>
     </SafeAreaView>

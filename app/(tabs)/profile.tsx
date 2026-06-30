@@ -193,6 +193,10 @@ export default function ProfileScreen() {
           <View style={styles.menuDivider} />
           <MenuItem icon="💬" label="문의하기" onPress={() => router.push('/inquiry')} />
           <View style={styles.menuDivider} />
+          <MenuItem icon="📄" label="이용약관" onPress={() => router.push('/legal/terms')} />
+          <View style={styles.menuDivider} />
+          <MenuItem icon="🔒" label="개인정보 처리방침" onPress={() => router.push('/legal/privacy')} />
+          <View style={styles.menuDivider} />
           <MenuItem icon="🚪" label="로그아웃" onPress={handleLogout} danger />
         </View>
 

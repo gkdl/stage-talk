@@ -16,6 +16,7 @@ import { colors } from '@/constants/theme';
 import { useActorPosts } from '@/hooks/useActorPosts';
 import { useDebounce } from '@/hooks/useDebounce';
 import { formatRelativeTime } from '@/utils/formatTime';
+import { dedupeById } from '@/utils/dedupeById';
 
 type SortType = 'likes_count' | 'created_at';
 
@@ -95,7 +96,7 @@ export default function ActorsScreen() {
   } = useActorPosts(search, sort);
 
   const posts = useMemo(
-    () => data?.pages.flatMap((p) => p.items) ?? [],
+    () => dedupeById(data?.pages.flatMap((p) => p.items) ?? []),
     [data],
   );
 

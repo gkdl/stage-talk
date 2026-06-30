@@ -40,6 +40,7 @@ export function useHomePosts(sort: HomeSort) {
           .select('*, profiles!inner(nickname, avatar_url), performances(title), actors(name)')
           .eq('is_hidden', false)
           .order('created_at', { ascending: false })
+          .order('id', { ascending: false }) // 페이징 안정화용 고유 tiebreaker
           .range(pageParam * PAGE_SIZE, (pageParam + 1) * PAGE_SIZE - 1);
 
         if (blockedIds.length > 0) {
@@ -67,6 +68,7 @@ export function useHomePosts(sort: HomeSort) {
         .select('*, profiles!inner(nickname, avatar_url), performances(title), actors(name)')
         .eq('is_hidden', false)
         .order(sort === 'likes_count' ? 'likes_count' : 'created_at', { ascending: false })
+        .order('id', { ascending: false }) // 페이징 안정화용 고유 tiebreaker
         .range(pageParam * PAGE_SIZE, (pageParam + 1) * PAGE_SIZE - 1);
 
       if (blockedIds.length > 0) {

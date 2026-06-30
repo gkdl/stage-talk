@@ -30,6 +30,7 @@ async function fetchPosts(
   } else {
     query = query.order('created_at', { ascending: false });
   }
+  query = query.order('id', { ascending: false }); // 페이징 안정화용 고유 tiebreaker
 
   const { data, error } = await query;
   if (error) throw error;

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,9 @@ import { colors } from '@/constants/theme';
 import { ContentBlock } from '@/types/database';
 import { useCreatePost } from '@/hooks/useCreatePost';
 import { useAuthStore } from '@/store/authStore';
+import { supabase } from '@/lib/supabase';
+import { useDebounce } from '@/hooks/useDebounce';
+import { resolveActorId } from '@/lib/actors';
 
 type Board = 'performance' | 'actor' | 'tips';
 
@@ -54,6 +57,34 @@ export default function WriteScreen() {
   const [blocks, setBlocks] = useState<ContentBlock[]>([{ type: 'text', value: '' }]);
   const [activeBlockIndex, setActiveBlockIndex] = useState(0);
 
+  // 배우 선택 (배우 게시판이면서 actorId가 미리 지정되지 않은 경우)
+  const needActorPicker = board === 'actor' && !actorId;
+  const [actorName, setActorName] = useState('');
+  const [pickedActorId, setPickedActorId] = useState<string | null>(actorId ?? null);
+  const [actorSuggestions, setActorSuggestions] = useState<{ id: string; name: string }[]>([]);
+  const debouncedActorName = useDebounce(actorName, 300);
+
+  useEffect(() => {
+    if (!needActorPicker) return;
+    const q = debouncedActorName.trim();
+    if (!q || pickedActorId) {
+      setActorSuggestions([]);
+      return;
+    }
+    let active = true;
+    supabase
+      .from('actors')
+      .select('id, name')
+      .ilike('name', `%${q}%`)
+      .limit(6)
+      .then(({ data }) => {
+        if (active) setActorSuggestions(data ?? []);
+      });
+    return () => {
+      active = false;
+    };
+  }, [debouncedActorName, needActorPicker, pickedActorId]);
+
   const tags = BOARD_TAGS[board];
 
   const boardLabel = board === 'performance' ? '공연 게시판' : board === 'actor' ? '배우 게시판' : '정보·팁';
@@ -88,6 +119,8 @@ export default function WriteScreen() {
   const handleSubmit = async () => {
     if (!user) return Alert.alert('로그인이 필요합니다');
     if (!selectedTag) return Alert.alert('태그를 선택해주세요');
+    if (needActorPicker && !pickedActorId && !actorName.trim())
+      return Alert.alert('어떤 배우에 대한 글인지 입력해주세요');
     if (!title.trim()) return Alert.alert('제목을 입력해주세요');
 
     const contentBlocks = blocks.filter(
@@ -96,10 +129,16 @@ export default function WriteScreen() {
     if (contentBlocks.length === 0) return Alert.alert('본문을 입력해주세요');
 
     try {
+      // 배우 게시판이면 actor_id 확정 (선택했으면 그 id, 아니면 이름으로 찾거나 생성)
+      let resolvedActorId = actorId ?? pickedActorId;
+      if (needActorPicker && !resolvedActorId) {
+        resolvedActorId = await resolveActorId(actorName);
+      }
+
       await createPost({
         board,
         performance_id: performanceId,
-        actor_id: actorId,
+        actor_id: resolvedActorId ?? undefined,
         tag: selectedTag,
         title: title.trim(),
         content_blocks: contentBlocks,
@@ -172,6 +211,46 @@ export default function WriteScreen() {
           </View>
 
           <View style={styles.divider} />
+
+          {/* 배우 선택 (배우 게시판) */}
+          {needActorPicker && (
+            <>
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>어떤 배우에 대한 글인가요?</Text>
+                <View style={styles.actorInputRow}>
+                  <TextInput
+                    style={styles.actorInput}
+                    placeholder="배우 이름 입력 (없으면 새로 등록돼요)"
+                    placeholderTextColor={colors.textTertiary}
+                    value={actorName}
+                    onChangeText={(t) => {
+                      setActorName(t);
+                      setPickedActorId(null);
+                    }}
+                  />
+                  {!!pickedActorId && <Text style={styles.actorPickedMark}>✓</Text>}
+                </View>
+                {!pickedActorId && actorSuggestions.length > 0 && (
+                  <View style={styles.suggestBox}>
+                    {actorSuggestions.map((s) => (
+                      <TouchableOpacity
+                        key={s.id}
+                        style={styles.suggestItem}
+                        onPress={() => {
+                          setActorName(s.name);
+                          setPickedActorId(s.id);
+                          setActorSuggestions([]);
+                        }}
+                      >
+                        <Text style={styles.suggestText}>{s.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+              <View style={styles.divider} />
+            </>
+          )}
 
           {/* 제목 */}
           <TextInput
@@ -299,6 +378,40 @@ const styles = StyleSheet.create({
   tagPillText: { fontSize: 13, fontWeight: '500' },
 
   divider: { height: 1, backgroundColor: colors.divider },
+
+  actorInputRow: { flexDirection: 'row', alignItems: 'center' },
+  actorInput: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  actorPickedMark: {
+    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  suggestBox: {
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: colors.cardBackground,
+  },
+  suggestItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  suggestText: { fontSize: 14, color: colors.textPrimary },
 
   titleInput: {
     paddingHorizontal: 16,

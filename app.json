@@ -1,21 +1,18 @@
 {
   "expo": {
-    "name": "관극",
+    "name": "스테이지톡",
     "slug": "stage-talk",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#7C3AED"
-    },
     "scheme": "gwanggeuk",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.stagetalk.app",
-      "associatedDomains": ["applinks:stagetalk.app"]
+      "associatedDomains": [
+        "applinks:stagetalk.app"
+      ]
     },
     "android": {
       "adaptiveIcon": {
@@ -34,8 +31,14 @@
               "pathPrefix": "/post"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
+      ],
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -43,6 +46,14 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#7C3AED"
+        }
+      ],
       [
         "expo-notifications",
         {
@@ -55,10 +66,23 @@
         {
           "photosPermission": "관람 기록과 게시글에 사진을 첨부하기 위해 사진 라이브러리 접근 권한이 필요합니다."
         }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-6630409826466167~1272054335",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6a86368b-113b-423d-a340-df3a208e68c9"
+      }
     }
   }
 }

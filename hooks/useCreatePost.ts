@@ -63,14 +63,11 @@ export function useCreatePost() {
       });
       if (error) throw error;
     },
-    onSuccess: (_, variables) => {
-      if (variables.performance_id) {
-        queryClient.invalidateQueries({ queryKey: ['performance-posts', variables.performance_id] });
-      }
-      if (variables.actor_id) {
-        queryClient.invalidateQueries({ queryKey: ['actor-posts', variables.actor_id] });
-      }
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
+    onSuccess: () => {
+      // 리스트 쿼리들 prefix로 무효화 (실제 키와 일치해야 새 글이 반영됨)
+      queryClient.invalidateQueries({ queryKey: ['home-posts'] });
+      queryClient.invalidateQueries({ queryKey: ['actor-posts-feed'] });
+      queryClient.invalidateQueries({ queryKey: ['performance-posts'] });
     },
   });
 

@@ -33,11 +33,15 @@ serve(async () => {
     const eddate = new Date(today.getFullYear(), today.getMonth() + 3, 0)
       .toISOString().slice(0, 10).replace(/-/g, '');
 
-    const url = `${KOPIS_BASE_URL}?service=${apiKey}&stdate=${stdate}&eddate=${eddate}&rows=${PAGE_SIZE}&cpage=1&genrenm=${genre.code}&newsql=Y`;
+    const MAX_PAGES = 30; // 안전 상한 (장르당 최대 3000건)
+    for (let cpage = 1; cpage <= MAX_PAGES; cpage++) {
+    const url = `${KOPIS_BASE_URL}?service=${apiKey}&stdate=${stdate}&eddate=${eddate}&rows=${PAGE_SIZE}&cpage=${cpage}&shcate=${genre.code}&newsql=Y`;
     const res = await fetch(url);
     const xml = await res.text();
 
     const items = xml.match(/<db>([\s\S]*?)<\/db>/g) || [];
+    console.log(`[${genre.type}] page=${cpage} status=${res.status} items=${items.length}`);
+    if (items.length === 0) break;
     for (const item of items) {
       const get = (tag: string) => {
         const m = item.match(new RegExp(`<${tag}><!\\[CDATA\\[([^\\]]*?)\\]\\]><\/${tag}>`));
@@ -49,20 +53,29 @@ serve(async () => {
       const kopis_id = get('mt20id');
       const title = get('prfnm');
       const venue = get('fcltynm');
-      const start_date = formatDate(get('prfpdfrom'));
-      const end_date = formatDate(get('prfpdto'));
+      const start_date = formatDate(get('prfpdfrom')) || null;
+      const end_date = formatDate(get('prfpdto')) || null;
       const stateStr = get('prfstate');
       const castStr = get('prfcast');
+      // 포스터 URL — https로 올리고, www는 301 리다이렉트가 있어 직접 200을 주는 non-www로 정규화
+      const posterRaw = get('poster');
+      const poster_url = posterRaw
+        ? posterRaw.replace(/^http:/, 'https:').replace('://www.kopis.or.kr', '://kopis.or.kr')
+        : null;
 
       const status = stateStr.includes('공연중') ? 'ongoing'
         : stateStr.includes('공연예정') ? 'upcoming' : 'ended';
 
-      const { data: perf } = await supabase
+      const { data: perf, error: perfErr } = await supabase
         .from('performances')
-        .upsert({ kopis_id, title, venue, start_date, end_date, genre: genre.type, status }, { onConflict: 'kopis_id' })
+        .upsert({ kopis_id, title, venue, start_date, end_date, genre: genre.type, status, poster_url }, { onConflict: 'kopis_id' })
         .select('id')
         .single();
 
+      if (perfErr) {
+        console.error(`upsert 실패 kopis_id=${kopis_id} title=${title}:`, perfErr.message);
+        continue;
+      }
       if (!perf || !castStr) continue;
 
       const actorNames = castStr.split(',').map((n: string) => n.trim()).filter(Boolean);
@@ -79,6 +92,8 @@ serve(async () => {
         }
       }
     }
+      if (items.length < PAGE_SIZE) break; // 마지막 페이지면 중단
+    }
   }
 
   return new Response(JSON.stringify({ ok: true }), {
@@ -86,7 +101,11 @@ serve(async () => {
   });
 });
 
-function formatDate(s: string): string {
-  if (!s || s.length < 8) return s;
-  return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+function formatDate(s: string): string | null {
+  if (!s) return null;
+  // KOPIS는 "YYYY.MM.DD" 형식으로 반환 (구분자 없는 "YYYYMMDD"도 대응)
+  const m = s.match(/(\d{4})[.\-/]?(\d{1,2})[.\-/]?(\d{1,2})/);
+  if (!m) return null;
+  const [, y, mo, d] = m;
+  return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
 }

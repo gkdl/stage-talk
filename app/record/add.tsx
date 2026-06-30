@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,8 @@ import { colors } from '@/constants/theme';
 import { useAddWatchLog } from '@/hooks/useWatchLogs';
 import { usePerformances } from '@/hooks/usePerformances';
 import { useDebounce } from '@/hooks/useDebounce';
+import { dedupeById } from '@/utils/dedupeById';
+import { resolveActorId, searchActors } from '@/lib/actors';
 
 export default function AddRecordScreen() {
   const router = useRouter();
@@ -25,14 +27,60 @@ export default function AddRecordScreen() {
   const [selectedPerf, setSelectedPerf] = useState<{ id: string; title: string } | null>(null);
   const [watchDate, setWatchDate] = useState('');
   const [seat, setSeat] = useState('');
-  const [casting, setCasting] = useState('');
   const [rating, setRating] = useState(5);
   const [memo, setMemo] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 
+  // 배우 다중 선택
+  const [pickedActors, setPickedActors] = useState<{ id: string; name: string }[]>([]);
+  const [actorInput, setActorInput] = useState('');
+  const [actorSuggestions, setActorSuggestions] = useState<{ id: string; name: string }[]>([]);
+  const [addingActor, setAddingActor] = useState(false);
+  const debouncedActor = useDebounce(actorInput, 300);
+
   const debouncedSearch = useDebounce(searchInput, 400);
-  const { data: perfPages } = usePerformances('', debouncedSearch);
-  const searchResults = perfPages?.pages.flatMap((p) => p.items).slice(0, 8) ?? [];
+  const { data: perfPages } = usePerformances('all', 'all', 'imminent', debouncedSearch);
+  const searchResults = dedupeById(perfPages?.pages.flat() ?? []).slice(0, 8);
+
+  useEffect(() => {
+    let active = true;
+    const q = debouncedActor.trim();
+    if (!q) {
+      setActorSuggestions([]);
+      return;
+    }
+    searchActors(q).then((list) => {
+      if (active) setActorSuggestions(list.filter((s) => !pickedActors.some((p) => p.id === s.id)));
+    });
+    return () => {
+      active = false;
+    };
+  }, [debouncedActor, pickedActors]);
+
+  const addActor = (actor: { id: string; name: string }) => {
+    if (pickedActors.some((p) => p.id === actor.id)) return;
+    setPickedActors((prev) => [...prev, actor]);
+    setActorInput('');
+    setActorSuggestions([]);
+  };
+
+  const addTypedActor = async () => {
+    const name = actorInput.trim();
+    if (!name || addingActor) return;
+    setAddingActor(true);
+    try {
+      const id = await resolveActorId(name);
+      if (id) addActor({ id, name });
+    } catch {
+      Alert.alert('배우 추가 실패', '잠시 후 다시 시도해주세요');
+    } finally {
+      setAddingActor(false);
+    }
+  };
+
+  const removeActor = (id: string) => {
+    setPickedActors((prev) => prev.filter((p) => p.id !== id));
+  };
 
   const handleSubmit = async () => {
     if (!selectedPerf) return Alert.alert('공연을 선택해주세요');
@@ -48,7 +96,9 @@ export default function AddRecordScreen() {
         performance_id: selectedPerf.id,
         watch_date: watchDate.trim(),
         seat: seat.trim() || undefined,
-        casting: casting.trim() || undefined,
+        // 표시용 캐스팅 문자열은 선택한 배우 이름으로 구성
+        casting: pickedActors.length > 0 ? pickedActors.map((a) => a.name).join(', ') : undefined,
+        actor_ids: pickedActors.map((a) => a.id),
         rating,
         memo: memo.trim() || undefined,
       });
@@ -162,14 +212,50 @@ export default function AddRecordScreen() {
           <View style={styles.divider} />
 
           <View style={styles.section}>
-            <Text style={styles.label}>캐스팅</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="예: 홍광호·민우혁"
-              placeholderTextColor={colors.textTertiary}
-              value={casting}
-              onChangeText={setCasting}
-            />
+            <Text style={styles.label}>본 배우 (최애 배우 집계에 사용돼요)</Text>
+
+            {/* 선택된 배우 칩 */}
+            {pickedActors.length > 0 && (
+              <View style={styles.chipRow}>
+                {pickedActors.map((a) => (
+                  <View key={a.id} style={styles.chip}>
+                    <Text style={styles.chipText}>{a.name}</Text>
+                    <TouchableOpacity onPress={() => removeActor(a.id)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                      <Text style={styles.chipRemove}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <View style={styles.actorInputRow}>
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                placeholder="배우 이름 입력 후 추가 (없으면 새로 등록)"
+                placeholderTextColor={colors.textTertiary}
+                value={actorInput}
+                onChangeText={setActorInput}
+                onSubmitEditing={addTypedActor}
+                returnKeyType="done"
+              />
+              <TouchableOpacity
+                style={[styles.addActorBtn, (!actorInput.trim() || addingActor) && styles.addActorBtnDisabled]}
+                onPress={addTypedActor}
+                disabled={!actorInput.trim() || addingActor}
+              >
+                <Text style={styles.addActorBtnText}>추가</Text>
+              </TouchableOpacity>
+            </View>
+
+            {actorSuggestions.length > 0 && (
+              <View style={styles.searchDropdown}>
+                {actorSuggestions.map((s) => (
+                  <TouchableOpacity key={s.id} style={styles.searchItem} onPress={() => addActor(s)}>
+                    <Text style={styles.searchItemText}>{s.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
 
           <View style={styles.divider} />
@@ -256,6 +342,29 @@ const styles = StyleSheet.create({
   starRow: { flexDirection: 'row', gap: 8 },
   starBtn: { fontSize: 28, color: colors.divider },
   starBtnActive: { color: '#F59E0B' },
+
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.primaryLight ?? '#EDE9FE',
+    borderRadius: 100,
+    paddingLeft: 12,
+    paddingRight: 8,
+    paddingVertical: 6,
+  },
+  chipText: { fontSize: 13, fontWeight: '600', color: colors.primary },
+  chipRemove: { fontSize: 11, color: colors.primary, fontWeight: '700' },
+  actorInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  addActorBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  addActorBtnDisabled: { opacity: 0.4 },
+  addActorBtnText: { fontSize: 14, fontWeight: '600', color: '#fff' },
 
   divider: { height: 1, backgroundColor: colors.divider },
 });

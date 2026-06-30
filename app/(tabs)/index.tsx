@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { colors } from '@/constants/theme';
 import { useHomePosts, HomeSort } from '@/hooks/useHomePosts';
 import { useAuthStore } from '@/store/authStore';
+import { dedupeById } from '@/utils/dedupeById';
 import { formatRelativeTime } from '@/utils/formatTime';
 
 const TAG_COLORS: Record<string, { bg: string; text: string }> = {
@@ -90,7 +91,7 @@ export default function HomeScreen() {
     useHomePosts(sort);
 
   const posts = useMemo(
-    () => data?.pages.flatMap((p) => p.items) ?? [],
+    () => dedupeById(data?.pages.flatMap((p) => p.items) ?? []),
     [data],
   );
 
@@ -111,7 +112,7 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* 헤더 */}
       <View style={styles.header}>
-        <Text style={styles.title}>관극</Text>
+        <Text style={styles.title}>스테이지톡</Text>
         <TouchableOpacity
           style={styles.bellButton}
           onPress={() => router.push('/notifications')}

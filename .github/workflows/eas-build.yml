@@ -1,9 +1,13 @@
 name: EAS Build (Android)
 
+# 자동 실행: main 브랜치에 push되면 production(AAB, 스토어용) 프로필로 자동 빌드
 # 수동 실행: GitHub → Actions → "EAS Build (Android)" → Run workflow
 # 사전 준비: 리포지토리 Settings → Secrets → Actions 에 EXPO_TOKEN 추가
 #   (expo.dev → Account Settings → Access Tokens 에서 발급)
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       profile:
@@ -17,7 +21,7 @@ on:
 
 jobs:
   build:
-    name: Android ${{ github.event.inputs.profile }} 빌드
+    name: Android ${{ github.event.inputs.profile || 'production' }} 빌드
     runs-on: ubuntu-latest
     steps:
       - name: 체크아웃
@@ -39,4 +43,4 @@ jobs:
         run: npm ci
 
       - name: EAS 빌드 실행 (클라우드)
-        run: eas build --platform android --profile ${{ github.event.inputs.profile }} --non-interactive --no-wait
+        run: eas build --platform android --profile ${{ github.event.inputs.profile || 'production' }} --non-interactive --no-wait

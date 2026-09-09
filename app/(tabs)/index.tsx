@@ -13,6 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors } from '@/constants/theme';
 import { useHomePosts, HomeSort } from '@/hooks/useHomePosts';
+import { usePerformances } from '@/hooks/usePerformances';
+import PerformanceCard from '@/components/PerformanceCard';
 import { useAuthStore } from '@/store/authStore';
 import { dedupeById } from '@/utils/dedupeById';
 import { formatRelativeTime } from '@/utils/formatTime';
@@ -81,6 +83,35 @@ const SORT_TABS: { key: HomeSort; label: string }[] = [
   { key: 'created_at', label: '최신글' },
   { key: 'following', label: '내 관심' },
 ];
+
+// 글이 없을 때(런칭 초기 등) 홈에 "지금 공연 중인 작품"을 추천해 빈 화면 방지
+function HomeEmptyState() {
+  const router = useRouter();
+  // 전체를 임박순으로 → 공연중이 먼저, 그다음 개막 임박 순
+  const { data } = usePerformances('all', 'all', 'imminent', '');
+  const perfs = (data?.pages.flat() ?? []).slice(0, 8);
+
+  return (
+    <View style={styles.emptyWrap}>
+      <Text style={styles.emptyEmoji}>🎭</Text>
+      <Text style={styles.emptyTitle}>아직 후기가 없어요</Text>
+      <Text style={styles.emptySub}>관심 있는 공연을 골라 첫 관람 후기를 남겨보세요</Text>
+
+      {perfs.length > 0 && (
+        <View style={styles.recSection}>
+          <Text style={styles.recTitle}>지금 볼 만한 공연</Text>
+          {perfs.map((p) => (
+            <PerformanceCard
+              key={p.id}
+              item={p}
+              onPress={() => router.push(`/performance/${p.id}` as never)}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -164,13 +195,13 @@ export default function HomeScreen() {
               : null
           }
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
-                {sort === 'following'
-                  ? '관심 배우나 공연을 팔로우해보세요'
-                  : '게시글이 없습니다'}
-              </Text>
-            </View>
+            sort === 'following' ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>관심 배우나 공연을 팔로우해보세요</Text>
+              </View>
+            ) : (
+              <HomeEmptyState />
+            )
           }
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           refreshControl={
@@ -282,6 +313,13 @@ const styles = StyleSheet.create({
 
   emptyContainer: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 32 },
   emptyText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
+
+  emptyWrap: { paddingTop: 40, paddingBottom: 24 },
+  emptyEmoji: { fontSize: 44, textAlign: 'center', marginBottom: 12 },
+  emptyTitle: { fontSize: 17, fontWeight: '700', color: colors.textPrimary, textAlign: 'center', marginBottom: 6 },
+  emptySub: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 28, paddingHorizontal: 32 },
+  recSection: { marginTop: 4 },
+  recTitle: { fontSize: 15, fontWeight: '700', color: colors.textPrimary, marginHorizontal: 20, marginBottom: 12 },
   loginBtn: {
     marginTop: 16,
     paddingHorizontal: 24,

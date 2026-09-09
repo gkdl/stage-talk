@@ -30,17 +30,16 @@ jobs:
       - name: Node 설정
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
-      - name: EAS / Expo 설정
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+      - name: eas-cli 설치 (npm)
+        run: npm install -g eas-cli
 
       - name: 의존성 설치
         run: npm ci
 
       - name: EAS 빌드 실행 (클라우드)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: eas build --platform android --profile ${{ github.event.inputs.profile || 'production' }} --non-interactive --no-wait
